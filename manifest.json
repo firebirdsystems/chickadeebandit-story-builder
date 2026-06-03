@@ -1,0 +1,25 @@
+{
+  "id": "story-builder",
+  "name": "Story Builder",
+  "version": "1.0.0",
+  "description": "Collaborative async storytelling — each contributor adds one part, and the full story reveals itself at the end.",
+  "entrypoint": "index.html",
+  "runtime": "static",
+  "category": "games",
+  "tags": ["kids", "creative", "async", "family"],
+  "icon": "📖",
+  "storage": "kv",
+  "data_access": {
+    "reads": ["family.members"],
+    "writes": []
+  },
+  "permissions": {
+    "default_audience": "everyone",
+    "requires_approval": false
+  },
+  "nav": { "label": "Stories" },
+  "ai_access": {
+    "allowed": true,
+    "mode": "read"
+  }
+}

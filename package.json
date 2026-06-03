@@ -1,0 +1,16 @@
+{
+  "name": "chickadee-story-builder",
+  "version": "1.0.0",
+  "description": "Collaborative async storytelling app for Chickadee Bandit",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "node dev.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

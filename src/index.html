@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <base href="/run/story-builder/" />
+  <title>Story Builder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        var(--hub-bg,           #f0f4f8);
+      --surface:   var(--hub-surface,      #ffffff);
+      --border:    var(--hub-border,       #d1dde8);
+      --text:      var(--hub-text,         #0f172a);
+      --muted:     var(--hub-text-muted,   #64748b);
+      --accent:    var(--hub-primary,      #4f46e5);
+      --accent-h:  var(--hub-primary-hover,#4338ca);
+      --accent-fg: var(--hub-primary-fg,   #ffffff);
+      --radius:    var(--hub-radius,       10px);
+      --font:      var(--hub-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+    }
+
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+    #app { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+    /* ── Header ── */
+    .hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+    .hdr h1 { font-size: 1.35rem; font-weight: 700; }
+    .hdr .sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Buttons ── */
+    .btn { border: none; border-radius: var(--radius); padding: 8px 18px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .btn-primary   { background: var(--accent); color: var(--accent-fg); }
+    .btn-primary:hover  { background: var(--accent-h); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--bg); }
+    .btn-danger    { background: transparent; color: #dc2626; border: 1px solid #fca5a5; }
+    .btn-danger:hover { background: #fee2e2; }
+    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
+
+    /* ── Section labels ── */
+    .sec { font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.06em; color: var(--muted); margin: 18px 0 8px; }
+
+    /* ── Story cards (list view) ── */
+    .story-card {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px;
+      cursor: pointer; transition: border-color 0.15s;
+    }
+    .story-card:hover { border-color: var(--accent); }
+    .story-card.urgent { border-left: 3px solid var(--accent); }
+    .card-body { flex: 1; min-width: 0; }
+    .card-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-status { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+    .card-status.my-turn { color: var(--accent); font-weight: 700; }
+    .card-arrow { color: var(--muted); font-size: 1.2rem; flex-shrink: 0; }
+
+    /* ── Avatars ── */
+    .avatars { display: flex; gap: 3px; }
+    .av {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.68rem; color: #fff; flex-shrink: 0;
+    }
+    .av-md {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem; color: #fff; flex-shrink: 0;
+    }
+    .av-lg {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.3rem; color: #fff; margin-bottom: 12px;
+    }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 56px 20px; color: var(--muted); }
+    .empty .icon { font-size: 2.8rem; margin-bottom: 12px; }
+    .empty p { font-size: 0.9rem; line-height: 1.65; }
+
+    /* ── Back button ── */
+    .back { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.85rem;
+            cursor: pointer; border: none; background: none; padding: 0 0 14px; }
+    .back:hover { color: var(--text); }
+
+    /* ── Story detail: header ── */
+    .story-hdr { margin-bottom: 18px; }
+    .story-hdr h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+    .story-meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
+
+    /* ── Status pills ── */
+    .pill {
+      display: inline-flex; align-items: center;
+      padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 700;
+    }
+    .pill-turn     { background: var(--accent); color: var(--accent-fg); }
+    .pill-waiting  { background: var(--border);  color: var(--muted); }
+    .pill-complete { background: #dcfce7; color: #166534; }
+
+    /* ── Entry input (your-turn state) ── */
+    .input-area { margin-top: 16px; }
+    .prev-note { font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
+    .prev-entry {
+      background: var(--bg); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent); border-radius: var(--radius);
+      padding: 12px 14px; margin-bottom: 14px;
+    }
+    .entry-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .entry-by  { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+    .entry-quote { font-size: 0.9rem; line-height: 1.65; font-style: italic; }
+    .entry-time  { font-size: 0.75rem; color: var(--muted); margin-left: auto; }
+    textarea.entry-input {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: 0.9rem; font-family: var(--font); background: var(--surface);
+      color: var(--text); resize: vertical; outline: none; min-height: 110px;
+    }
+    textarea.entry-input:focus { border-color: var(--accent); }
+    .detail-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Waiting state ── */
+    .waiting-state { text-align: center; padding: 36px 20px; color: var(--muted); }
+    .waiting-state p { font-size: 0.9rem; line-height: 1.65; margin-top: 6px; }
+
+    /* ── Complete view ── */
+    .story-scroll { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+    .entry-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px;
+    }
+    .entry-text { font-size: 0.9rem; line-height: 1.7; margin-top: 8px; }
+    .the-end { text-align: center; color: var(--muted); font-style: italic; font-size: 0.9rem; padding: 18px 0 4px; }
+    .copy-wrap { text-align: center; margin-top: 12px; padding-bottom: 16px; }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 100; padding: 0;
+    }
+    @media (min-width: 500px) {
+      .modal-backdrop { align-items: center; padding: 16px; }
+    }
+    .modal {
+      background: var(--surface); border-radius: var(--radius) var(--radius) 0 0;
+      padding: 22px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto;
+    }
+    @media (min-width: 500px) {
+      .modal { border-radius: var(--radius); }
+    }
+    .modal h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 16px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+
+    /* ── Form ── */
+    .fg { margin-bottom: 14px; }
+    .fg label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; }
+    .fg .lbl-muted { font-weight: 400; color: var(--muted); }
+    .input {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: 0.875rem; font-family: var(--font);
+      background: var(--surface); color: var(--text); outline: none;
+    }
+    .input:focus { border-color: var(--accent); }
+    .input-sm { width: 72px; }
+
+    /* ── Participant picker ── */
+    .member-list { display: flex; flex-direction: column; gap: 6px; }
+    .member-item {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+      border: 2px solid var(--border); border-radius: var(--radius);
+      cursor: pointer; user-select: none; transition: border-color 0.12s, background 0.12s;
+    }
+    .member-item.sel    { border-color: var(--accent); background: #eff6ff; }
+    .member-item.locked { cursor: default; }
+    .member-name { font-size: 0.875rem; font-weight: 500; }
+    .member-you  { margin-left: auto; font-size: 0.75rem; color: var(--muted); }
+
+    /* ── Turn mode options ── */
+    .turn-opts { display: flex; flex-direction: column; gap: 6px; }
+    .turn-opt {
+      display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px;
+      border: 2px solid var(--border); border-radius: var(--radius); cursor: pointer;
+    }
+    .turn-opt input[type="radio"] { margin-top: 3px; flex-shrink: 0; accent-color: var(--accent); }
+    .turn-opt-body { flex: 1; }
+    .turn-opt-label { font-size: 0.875rem; font-weight: 600; }
+    .turn-opt-desc  { font-size: 0.78rem; color: var(--muted); margin-top: 1px; }
+
+    /* ── Rounds row ── */
+    .rounds-row { display: flex; align-items: center; gap: 12px; }
+    .check-label { display: flex; align-items: center; gap: 6px; font-size: 0.875rem; cursor: pointer; }
+    .check-label input { accent-color: var(--accent); }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div style="display:flex;align-items:center;justify-content:center;height:60vh;color:var(--muted,#64748b)">Loading…</div>
+</div>
+
+<script type="module">
+import { nextTurnId, canAddEntry, isStoryComplete, isParticipant } from "./logic.js";
+
+// ── Runtime globals ────────────────────────────────────────────────────────────
+const CONTEXT   = window.__CONTEXT_URL    ?? "";
+const STORE     = window.__STORE_URL      ?? "";
+const APP_ID    = window.__APP_ID         ?? "story-builder";
+const ME_RAW    = window.__CURRENT_MEMBER ?? null;
+
+// Demo mode: synthetic ME so demo stories work without a logged-in user
+const me = ME_RAW ?? { id: "demo-you", name: "You", role: "adult" };
+
+// ── App state ──────────────────────────────────────────────────────────────────
+let members      = [];
+let stories      = [];
+let view         = "list";   // "list" | "detail"
+let activeStory  = null;
+let activeEntries = [];
+let modalEl      = null;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#ef4444","#f97316","#eab308","#22c55e","#14b8a6","#3b82f6","#64748b"];
+
+const _colorCache = new Map();
+function memberColor(id) {
+  if (_colorCache.has(id)) return _colorCache.get(id);
+  let h = 0;
+  for (let i = 0; i < (id || "").length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const color = AVATAR_COLORS[h % AVATAR_COLORS.length];
+  _colorCache.set(id, color);
+  return color;
+}
+
+function initial(name) { return (name || "?")[0].toUpperCase(); }
+
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+}
+
+function relDate(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000)    return "just now";
+  if (diff < 3600000)  return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
+}
+
+function av(memberId, memberName, cls = "av") {
+  return `<span class="${cls}" style="background:${memberColor(memberId)}">${esc(initial(memberName))}</span>`;
+}
+
+// ── KV helpers ─────────────────────────────────────────────────────────────────
+async function kvGet(key) {
+  if (!STORE) return null;
+  try {
+    const res = await fetch(`${STORE}?key=${encodeURIComponent(key)}`);
+    if (!res.ok) return null;
+    const { value } = await res.json();
+    return value ? JSON.parse(value) : null;
+  } catch { return null; }
+}
+
+async function kvSet(key, data) {
+  if (!STORE) return;
+  await fetch(STORE, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value: JSON.stringify(data) }),
+  });
+}
+
+// ── Data loaders ───────────────────────────────────────────────────────────────
+async function loadMembers() {
+  if (!CONTEXT) { members = DEMO_MEMBERS; return; }
+  try {
+    const res = await fetch(`${CONTEXT}?keys=family.members`);
+    members = ((await res.json())["family.members"]) ?? [];
+  } catch { members = []; }
+}
+
+async function loadStories() {
+  if (!STORE) { stories = [...DEMO_STORIES]; return; }
+  stories = await kvGet("stories") ?? [];
+}
+
+// ── Notifications ──────────────────────────────────────────────────────────────
+async function notifyTurn(story) {
+  let body;
+  if (story.status === "complete") {
+    body = `"${story.title}" is complete — read the full story now!`;
+  } else if (story.turn_mode === "free-for-all") {
+    body = `${me.name} added to "${story.title}" — anyone can go next!`;
+  } else {
+    const next = story.participants.find(p => p.id === story.current_turn_member_id);
+    body = next
+      ? `It's ${next.name}'s turn to add to "${story.title}"!`
+      : `Someone's turn to add to "${story.title}"!`;
+  }
+  await fetch("/api/notifications/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "Story Builder", body, url: `/run/${APP_ID}` }),
+  }).catch(() => {});
+}
+
+// ── Hub confirm (falls back to window.confirm in demo/dev) ────────────────────
+async function confirm_({ message, description = "", confirmLabel = "Confirm", destructive = false }) {
+  if (typeof window.__hubConfirm === "function") {
+    return window.__hubConfirm({ message, description, confirmLabel, destructive });
+  }
+  return window.confirm(description ? `${message}\n\n${description}` : message);
+}
+
+// ── Modal ──────────────────────────────────────────────────────────────────────
+function openModal(html) {
+  closeModal();
+  modalEl = document.createElement("div");
+  modalEl.className = "modal-backdrop";
+  modalEl.innerHTML = `<div class="modal">${html}</div>`;
+  modalEl.addEventListener("click", e => { if (e.target === modalEl) closeModal(); });
+  document.body.appendChild(modalEl);
+}
+window.closeModal = function() { modalEl?.remove(); modalEl = null; };
+function closeModal() { window.closeModal(); }
+
+// ── Render: story list ─────────────────────────────────────────────────────────
+function storyCard(s) {
+  const myTurn   = canAddEntry(s, me.id);
+  const complete = s.status === "complete";
+  const roundText = s.max_rounds
+    ? `Round ${s.current_round} of ${s.max_rounds}`
+    : `${s.current_round} ${s.current_round === 1 ? "entry" : "entries"}`;
+
+  let statusText, statusClass = "";
+  if (complete) {
+    statusText = `Complete · ${roundText}`;
+  } else if (myTurn) {
+    statusText = "Your turn!";
+    statusClass = "my-turn";
+  } else if (s.turn_mode === "free-for-all") {
+    statusText = `You just went · ${roundText}`;
+  } else {
+    const next = s.participants.find(p => p.id === s.current_turn_member_id);
+    statusText = `Waiting for ${esc(next?.name ?? "someone")} · ${roundText}`;
+  }
+
+  const avatarsHtml = `<div class="avatars">${s.participants.map(p => av(p.id, p.name)).join("")}</div>`;
+
+  return `
+    <div class="story-card ${myTurn ? "urgent" : ""}" onclick="openStory('${esc(s.id)}')">
+      <div class="card-body">
+        <div class="card-title">${esc(s.title)}</div>
+        <div class="card-status ${statusClass}">${statusText}</div>
+        ${avatarsHtml}
+      </div>
+      <div class="card-arrow">›</div>
+    </div>`;
+}
+
+function renderList() {
+  const myTurn  = stories.filter(s => s.status === "active" && canAddEntry(s, me.id));
+  const waiting = stories.filter(s => s.status === "active" && !canAddEntry(s, me.id));
+  const done    = stories.filter(s => s.status === "complete");
+
+  document.getElementById("app").innerHTML = `
+    <div class="hdr">
+      <div>
+        <h1>📖 Story Builder</h1>
+        <div class="sub">Collaborative family storytelling</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openNewStoryModal()">+ New Story</button>
+    </div>
+
+    ${myTurn.length  ? `<div class="sec">Your turn</div>${myTurn.map(storyCard).join("")}` : ""}
+    ${waiting.length ? `<div class="sec">In progress</div>${waiting.map(storyCard).join("")}` : ""}
+    ${done.length    ? `<div class="sec">Complete</div>${done.map(storyCard).join("")}` : ""}
+
+    ${stories.length === 0 ? `
+      <div class="empty">
+        <div class="icon">📖</div>
+        <p>No stories yet.<br>Start one and let the family imagination run wild!</p>
+      </div>` : ""}`;
+}
+
+// ── Render: story detail ───────────────────────────────────────────────────────
+function renderDetail() {
+  const s = activeStory;
+  if (!s) { view = "list"; renderList(); return; }
+
+  const complete = s.status === "complete";
+  const myTurn   = canAddEntry(s, me.id);
+  const lastEntry = activeEntries[activeEntries.length - 1];
+  const turnLabel = { "round-robin": "Round-robin", "random": "Random", "free-for-all": "Free-for-all" }[s.turn_mode] ?? s.turn_mode;
+  const roundText = s.max_rounds
+    ? `Round ${s.current_round} of ${s.max_rounds}`
+    : `${s.current_round} ${s.current_round === 1 ? "entry" : "entries"}`;
+
+  let pillHtml;
+  if (complete) {
+    pillHtml = `<span class="pill pill-complete">Story complete</span>`;
+  } else if (myTurn) {
+    pillHtml = `<span class="pill pill-turn">Your turn</span>`;
+  } else if (s.turn_mode === "free-for-all") {
+    pillHtml = `<span class="pill pill-waiting">You just went</span>`;
+  } else {
+    const nextP = s.participants.find(p => p.id === s.current_turn_member_id);
+    pillHtml = `<span class="pill pill-waiting">Waiting for ${esc(nextP?.name ?? "someone")}</span>`;
+  }
+
+  let contentHtml;
+  if (complete) {
+    contentHtml = `
+      <div class="story-scroll">
+        ${activeEntries.map(e => `
+          <div class="entry-card">
+            <div class="entry-meta">
+              ${av(e.member_id, e.member_name, "av-md")}
+              <span class="entry-by">${esc(e.member_name)}</span>
+              <span class="entry-time">${relDate(e.added_at)}</span>
+            </div>
+            <div class="entry-text">${esc(e.text)}</div>
+          </div>`).join("")}
+        <div class="the-end">— The End —</div>
+      </div>
+      <div class="copy-wrap">
+        <button class="btn btn-secondary btn-sm" onclick="copyStory()">Copy story text</button>
+      </div>`;
+  } else if (myTurn) {
+    contentHtml = `
+      <div class="input-area">
+        ${lastEntry ? `
+          <div class="prev-note">Previous entry — only you see this before adding your part:</div>
+          <div class="prev-entry">
+            <div class="entry-meta">
+              ${av(lastEntry.member_id, lastEntry.member_name, "av-md")}
+              <span class="entry-by">${esc(lastEntry.member_name)}</span>
+            </div>
+            <div class="entry-quote">${esc(lastEntry.text)}</div>
+          </div>` : ""}
+        <textarea id="entry-text" class="entry-input" placeholder="Add your part of the story…" rows="6" maxlength="1000"></textarea>
+        <div class="detail-actions">
+          <button class="btn btn-primary" onclick="submitEntry()">Add to Story</button>
+          <button class="btn btn-danger btn-sm" onclick="endStory()">End Story</button>
+        </div>
+      </div>`;
+  } else {
+    // Waiting state — show who goes next (or who just went in FFA)
+    let waitMsg;
+    if (s.turn_mode === "free-for-all") {
+      waitMsg = "You just went! Waiting for someone else to add the next part.";
+    } else {
+      const nextP = s.participants.find(p => p.id === s.current_turn_member_id);
+      waitMsg = `Waiting for <strong>${esc(nextP?.name ?? "someone")}</strong> to add their part.`;
+    }
+    const nextP = s.turn_mode === "free-for-all" ? null : s.participants.find(p => p.id === s.current_turn_member_id);
+    contentHtml = `
+      <div class="waiting-state">
+        ${nextP ? av(nextP.id, nextP.name, "av-lg") : ""}
+        <p>${waitMsg}</p>
+      </div>
+      <div class="detail-actions" style="justify-content:flex-end">
+        <button class="btn btn-danger btn-sm" onclick="endStory()">End Story</button>
+      </div>`;
+  }
+
+  document.getElementById("app").innerHTML = `
+    <button class="back" onclick="goBack()">‹ Stories</button>
+    <div class="story-hdr">
+      <h2>${esc(s.title)}</h2>
+      <div class="story-meta">${roundText} · ${turnLabel} · ${s.participants.map(p => esc(p.name)).join(", ")}</div>
+      ${pillHtml}
+    </div>
+    ${contentHtml}`;
+
+  if (myTurn && !complete) {
+    setTimeout(() => document.getElementById("entry-text")?.focus(), 50);
+  }
+}
+
+function render() {
+  if (view === "list") renderList();
+  else renderDetail();
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────────
+window.goBack = function() {
+  view = "list";
+  activeStory  = null;
+  activeEntries = [];
+  render();
+};
+
+window.openStory = async function(id) {
+  const story = stories.find(s => s.id === id);
+  if (!story) return;
+  activeStory   = story;
+  activeEntries = [];
+  view = "detail";
+
+  const needsEntries = story.status === "complete" || canAddEntry(story, me.id);
+  if (needsEntries) {
+    // Show minimal loading state, then do one full render once entries arrive
+    document.getElementById("app").innerHTML =
+      `<button class="back" onclick="goBack()">‹ Stories</button>` +
+      `<div style="padding:48px 0;text-align:center;color:var(--muted)">Loading…</div>`;
+    activeEntries = !STORE
+      ? (DEMO_ENTRIES[id] ?? [])
+      : (await kvGet(`story_${id}`) ?? []);
+  }
+  render();
+};
+
+// ── Submit entry ───────────────────────────────────────────────────────────────
+window.submitEntry = async function() {
+  const textEl = document.getElementById("entry-text");
+  const text   = textEl?.value.trim();
+  if (!text) { textEl?.focus(); return; }
+
+  const btn = document.querySelector(".btn-primary");
+  if (btn) { btn.disabled = true; btn.textContent = "Adding…"; }
+
+  try {
+    const entry = { member_id: me.id, member_name: me.name, text, added_at: new Date().toISOString() };
+
+    if (!STORE) {
+      // Demo mode — mutate in memory
+      activeEntries.push(entry);
+      const s = activeStory;
+      const prevId = s.current_turn_member_id;
+      s.current_round++;
+      s.current_turn_member_id = nextTurnId(s, me.id);
+      if (isStoryComplete(s)) s.status = "complete";
+      render();
+      return;
+    }
+
+    // Fetch entries and stories list in parallel
+    const [existingEntries, allStories] = await Promise.all([
+      kvGet(`story_${activeStory.id}`),
+      kvGet("stories"),
+    ]);
+    const entries     = existingEntries ?? [];
+    const storiesList = allStories ?? [];
+    entries.push(entry);
+
+    const idx = storiesList.findIndex(s => s.id === activeStory.id);
+    if (idx !== -1) {
+      const s = storiesList[idx];
+      s.current_round++;
+      s.current_turn_member_id = nextTurnId(s, me.id);
+      if (isStoryComplete(s)) s.status = "complete";
+      storiesList[idx] = s;
+      activeStory = s;
+    }
+
+    await Promise.all([
+      kvSet(`story_${activeStory.id}`, entries),
+      kvSet("stories", storiesList),
+    ]);
+
+    activeEntries = entries;
+    stories = storiesList;
+    notifyTurn(activeStory).catch(() => {});
+    render();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Add to Story"; }
+    throw e;
+  }
+};
+
+// ── End story ──────────────────────────────────────────────────────────────────
+window.endStory = async function() {
+  const ok = await confirm_({
+    message: "End this story?",
+    description: "The complete story will be revealed to everyone.",
+    confirmLabel: "End Story",
+    destructive: true,
+  });
+  if (!ok) return;
+
+  if (!STORE) {
+    activeStory.status  = "complete";
+    activeStory.ended_at = new Date().toISOString();
+    activeEntries = DEMO_ENTRIES[activeStory.id] ?? [];
+    render();
+    return;
+  }
+
+  // Fetch stories list and entries in parallel
+  const [allStories, entries] = await Promise.all([
+    kvGet("stories"),
+    kvGet(`story_${activeStory.id}`),
+  ]);
+
+  const storiesList = allStories ?? [];
+  const idx = storiesList.findIndex(s => s.id === activeStory.id);
+  if (idx !== -1) {
+    storiesList[idx].status  = "complete";
+    storiesList[idx].ended_at = new Date().toISOString();
+    activeStory = storiesList[idx];
+  }
+
+  await kvSet("stories", storiesList);
+
+  activeEntries = entries ?? [];
+  stories = storiesList;
+  notifyTurn(activeStory).catch(() => {});
+  render();
+};
+
+// ── Copy story text ────────────────────────────────────────────────────────────
+window.copyStory = async function() {
+  const lines = [`📖 ${activeStory.title}\n`];
+  for (const e of activeEntries) lines.push(`${e.member_name}:\n${e.text}`);
+  lines.push("\n— The End —");
+  try {
+    await navigator.clipboard.writeText(lines.join("\n\n"));
+    const btn = document.querySelector(".copy-wrap button");
+    if (btn) {
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy story text"; }, 2000);
+    }
+  } catch {}
+};
+
+// ── New story modal ────────────────────────────────────────────────────────────
+window.openNewStoryModal = function() {
+  openModal(`
+    <h2>New Story</h2>
+    <div class="fg">
+      <label>Title</label>
+      <input id="f-title" class="input" placeholder="The Great Adventure…" maxlength="100" />
+    </div>
+    <div class="fg">
+      <label>Opening paragraph <span class="lbl-muted">(your first entry)</span></label>
+      <textarea id="f-opening" class="input" rows="4" placeholder="Once upon a time…" maxlength="1000" style="resize:vertical"></textarea>
+    </div>
+    <div class="fg">
+      <label>Participants</label>
+      <div class="member-list">
+        ${members.map(m => `
+          <div class="member-item sel ${m.id === me.id ? "locked" : ""}" id="pick-${esc(m.id)}"
+               ${m.id !== me.id ? `onclick="toggleParticipant('${esc(m.id)}')"` : ""}>
+            ${av(m.id, m.name, "av-md")}
+            <span class="member-name">${esc(m.name)}</span>
+            ${m.id === me.id ? '<span class="member-you">you</span>' : ""}
+          </div>`).join("")}
+      </div>
+    </div>
+    <div class="fg">
+      <label>Turn order</label>
+      <div class="turn-opts">
+        <label class="turn-opt">
+          <input type="radio" name="turn-mode" value="round-robin" checked />
+          <div class="turn-opt-body">
+            <div class="turn-opt-label">Round-robin</div>
+            <div class="turn-opt-desc">Each person goes in sequence</div>
+          </div>
+        </label>
+        <label class="turn-opt">
+          <input type="radio" name="turn-mode" value="random" />
+          <div class="turn-opt-body">
+            <div class="turn-opt-label">Random</div>
+            <div class="turn-opt-desc">A random participant is picked each time</div>
+          </div>
+        </label>
+        <label class="turn-opt">
+          <input type="radio" name="turn-mode" value="free-for-all" />
+          <div class="turn-opt-body">
+            <div class="turn-opt-label">Free-for-all</div>
+            <div class="turn-opt-desc">Anyone can go, except the person who went last</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div class="fg">
+      <label>Max rounds</label>
+      <div class="rounds-row">
+        <input type="number" id="f-rounds" class="input input-sm" value="10" min="2" max="100" />
+        <label class="check-label">
+          <input type="checkbox" id="f-no-limit" onchange="toggleNoLimit(this)" /> No limit
+        </label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createStory()">Start Story</button>
+    </div>`);
+  setTimeout(() => document.getElementById("f-title")?.focus(), 50);
+};
+
+window.toggleParticipant = function(id) {
+  const el = document.getElementById(`pick-${id}`);
+  if (!el || el.classList.contains("locked")) return;
+  el.classList.toggle("sel");
+};
+
+window.toggleNoLimit = function(checkbox) {
+  const el = document.getElementById("f-rounds");
+  if (el) el.disabled = checkbox.checked;
+};
+
+window.createStory = async function() {
+  const title   = document.getElementById("f-title")?.value.trim();
+  const opening = document.getElementById("f-opening")?.value.trim();
+  if (!title)   { document.getElementById("f-title")?.focus(); return; }
+  if (!opening) { document.getElementById("f-opening")?.focus(); return; }
+
+  const selected = members.filter(m => document.getElementById(`pick-${m.id}`)?.classList.contains("sel"));
+  if (selected.length < 2) {
+    alert("Select at least one other participant.");
+    return;
+  }
+
+  const turnMode  = document.querySelector("input[name='turn-mode']:checked")?.value ?? "round-robin";
+  const noLimit   = document.getElementById("f-no-limit")?.checked;
+  const maxRounds = noLimit ? null : (parseInt(document.getElementById("f-rounds")?.value, 10) || 10);
+
+  const btn = modalEl?.querySelector(".btn-primary");
+  if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
+
+  try {
+    const storyId    = crypto.randomUUID();
+    const now        = new Date().toISOString();
+    const participants = selected.map(m => ({ id: m.id, name: m.name }));
+
+    // Creator goes first; build the header as if creator just submitted
+    const story = {
+      id: storyId,
+      title,
+      creator_id:   me.id,
+      creator_name: me.name,
+      status: "active",
+      turn_mode: turnMode,
+      max_rounds: maxRounds,
+      participants,
+      current_turn_member_id: me.id, // creator just went — advance from here
+      current_round: 1,
+      created_at: now,
+      ended_at: null,
+    };
+    story.current_turn_member_id = nextTurnId(story, me.id);
+    if (isStoryComplete(story)) story.status = "complete";
+
+    const entries = [{ member_id: me.id, member_name: me.name, text: opening, added_at: now }];
+
+    if (!STORE) {
+      DEMO_STORIES.unshift(story);
+      DEMO_ENTRIES[storyId] = entries;
+      stories      = [...DEMO_STORIES];
+      activeStory  = story;
+      activeEntries = entries;
+      view = "detail";
+      closeModal();
+      render();
+      return;
+    }
+
+    await kvSet(`story_${storyId}`, entries);
+    const existing = await kvGet("stories") ?? [];
+    existing.unshift(story);
+    await kvSet("stories", existing);
+
+    stories       = existing;
+    activeStory   = story;
+    activeEntries = entries;
+    view = "detail";
+    closeModal();
+    await notifyTurn(story);
+    render();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Start Story"; }
+    throw e;
+  }
+};
+
+// ── Deep linking ───────────────────────────────────────────────────────────────
+function handleDeepLink() {
+  const storyId = new URLSearchParams(window.location.search).get("storyId");
+  if (!storyId) return;
+  const story = stories.find(s => s.id === storyId);
+  if (story) { activeStory = story; view = "detail"; }
+}
+
+// ── Demo data ──────────────────────────────────────────────────────────────────
+const DEMO_MEMBERS = [
+  { id: "demo-you",  name: "You",   role: "adult" },
+  { id: "demo-dad",  name: "Dad",   role: "adult" },
+  { id: "demo-emma", name: "Emma",  role: "child" },
+  { id: "demo-liam", name: "Liam",  role: "child" },
+];
+
+const DEMO_STORIES = [
+  {
+    id: "demo-s1",
+    title: "The Dragon's Secret",
+    creator_id: "demo-dad", creator_name: "Dad",
+    status: "active", turn_mode: "round-robin", max_rounds: 10,
+    participants: [
+      { id: "demo-dad",  name: "Dad"  },
+      { id: "demo-emma", name: "Emma" },
+      { id: "demo-you",  name: "You"  },
+    ],
+    current_turn_member_id: "demo-you",
+    current_round: 2,
+    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    ended_at: null,
+  },
+  {
+    id: "demo-s2",
+    title: "The Midnight Kitchen",
+    creator_id: "demo-liam", creator_name: "Liam",
+    status: "active", turn_mode: "free-for-all", max_rounds: null,
+    participants: [
+      { id: "demo-liam", name: "Liam" },
+      { id: "demo-you",  name: "You"  },
+      { id: "demo-dad",  name: "Dad"  },
+    ],
+    current_turn_member_id: "demo-dad", // Dad went last — You can go
+    current_round: 3,
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    ended_at: null,
+  },
+  {
+    id: "demo-s3",
+    title: "Lost in the Jungle",
+    creator_id: "demo-you", creator_name: "You",
+    status: "complete", turn_mode: "free-for-all", max_rounds: 4,
+    participants: [
+      { id: "demo-you", name: "You" },
+      { id: "demo-dad", name: "Dad" },
+    ],
+    current_turn_member_id: "demo-dad",
+    current_round: 4,
+    created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+    ended_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
+const DEMO_ENTRIES = {
+  "demo-s1": [
+    { member_id: "demo-dad",  member_name: "Dad",  text: "In the quiet village of Millhaven, there lived a peculiar old dragon named Ember who kept a secret locked in a golden chest that no one dared open.", added_at: new Date(Date.now() - 2 * 86400000).toISOString() },
+    { member_id: "demo-emma", member_name: "Emma", text: "Every night, strange blue lights flickered from the cave where Ember slept, and the children of Millhaven whispered that the chest contained a map to a magical world.", added_at: new Date(Date.now() - 86400000).toISOString() },
+  ],
+  "demo-s2": [
+    { member_id: "demo-liam", member_name: "Liam", text: "At exactly midnight, the kitchen lights flickered on by themselves, and the smell of warm cookies drifted through the house even though nobody was baking.", added_at: new Date(Date.now() - 86400000).toISOString() },
+    { member_id: "demo-you",  member_name: "You",  text: "I crept downstairs to investigate and found every cabinet door swinging open in perfect sequence, as if something invisible was searching for something specific.", added_at: new Date(Date.now() - 43200000).toISOString() },
+    { member_id: "demo-dad",  member_name: "Dad",  text: "On the counter sat a small note written in crumbs: \"We borrowed the flour. Left something in return. Check the bread box.\"", added_at: new Date(Date.now() - 3600000).toISOString() },
+  ],
+  "demo-s3": [
+    { member_id: "demo-you", member_name: "You", text: "We had been hiking for three days when we realized the trail markers had been removed by someone — or something.", added_at: new Date(Date.now() - 5 * 86400000).toISOString() },
+    { member_id: "demo-dad", member_name: "Dad", text: "The compass spun wildly, and overhead, a flock of bright red parrots circled as if watching us decide what to do next.", added_at: new Date(Date.now() - 4 * 86400000).toISOString() },
+    { member_id: "demo-you", member_name: "You", text: "\"Follow the parrots,\" I said, and we crashed through the undergrowth until we broke into a clearing where an ancient stone temple rose from the jungle floor.", added_at: new Date(Date.now() - 3 * 86400000).toISOString() },
+    { member_id: "demo-dad", member_name: "Dad", text: "Carved above the entrance were the words: \"Only those who are truly lost may find their way home\" — and suddenly we understood that being lost had been the whole point.", added_at: new Date(Date.now() - 86400000).toISOString() },
+  ],
+};
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+(async () => {
+  await Promise.all([loadMembers(), loadStories()]);
+  handleDeepLink();
+  render();
+})();
+</script>
+</body>
+</html>
