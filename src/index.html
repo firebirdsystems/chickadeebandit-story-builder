@@ -301,7 +301,7 @@ async function notifyTurn(story) {
       ? `It's ${next.name}'s turn to add to "${story.title}"!`
       : `Someone's turn to add to "${story.title}"!`;
   }
-  await fetch("/api/notifications/send", {
+  await fetch(window.__NOTIFY_URL ?? "/api/notifications/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title: "Story Builder", body, url: `/run/${APP_ID}` }),
