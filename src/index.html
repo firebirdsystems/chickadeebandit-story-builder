@@ -201,6 +201,18 @@
   <div style="display:flex;align-items:center;justify-content:center;height:60vh;color:var(--muted,#64748b)">Loading…</div>
 </div>
 
+<!--
+  SECURITY MODEL (intentional / accepted):
+  This app uses storage:"kv", which is household-wide readable and writable by any
+  authenticated member. There are no row_policies and no server-side turn enforcement.
+  Any member can POST arbitrary JSON to the KV store and skip turn order, read all
+  story entries before a story completes, or end a story early.
+
+  This is accepted because Story Builder is low-stakes creative content with no
+  private data, no financial value, and no approval gates. Integrity and "blind
+  storytelling" are enforced only by convention. If either property becomes important,
+  the app would need to migrate to storage:"db" with server-side submission validation.
+-->
 <script type="module">
 import { nextTurnId, canAddEntry, isStoryComplete, isParticipant } from "./logic.js";
 
@@ -290,6 +302,7 @@ async function loadStories() {
 
 // ── Notifications ──────────────────────────────────────────────────────────────
 async function notifyTurn(story) {
+  if (!isParticipant(story, me.id)) return;
   let body;
   if (story.status === "complete") {
     body = `"${story.title}" is complete — read the full story now!`;
@@ -445,7 +458,7 @@ function renderDetail() {
         <textarea id="entry-text" class="entry-input" placeholder="Add your part of the story…" rows="6" maxlength="1000"></textarea>
         <div class="detail-actions">
           <button class="btn btn-primary" onclick="submitEntry()">Add to Story</button>
-          <button class="btn btn-danger btn-sm" onclick="endStory()">End Story</button>
+          ${s.creator_id === me.id ? `<button class="btn btn-danger btn-sm" onclick="endStory()">End Story</button>` : ""}
         </div>
       </div>`;
   } else {
@@ -463,9 +476,10 @@ function renderDetail() {
         ${nextP ? av(nextP.id, nextP.name, "av-lg") : ""}
         <p>${waitMsg}</p>
       </div>
+      ${s.creator_id === me.id ? `
       <div class="detail-actions" style="justify-content:flex-end">
         <button class="btn btn-danger btn-sm" onclick="endStory()">End Story</button>
-      </div>`;
+      </div>` : ""}`;
   }
 
   document.getElementById("app").innerHTML = `
