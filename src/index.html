@@ -215,6 +215,7 @@
 -->
 <script type="module">
 import { nextTurnId, canAddEntry, isStoryComplete, isParticipant } from "./logic.js";
+import { hubAlert } from "/hub-sdk.js";
 
 // ── Runtime globals ────────────────────────────────────────────────────────────
 const CONTEXT   = window.__CONTEXT_URL    ?? "";
@@ -727,7 +728,7 @@ window.createStory = async function() {
 
   const selected = members.filter(m => document.getElementById(`pick-${m.id}`)?.classList.contains("sel"));
   if (selected.length < 2) {
-    alert("Select at least one other participant.");
+    hubAlert("Select at least one other participant.");
     return;
   }
 
