@@ -1,5 +1,6 @@
 {
   "id": "story-builder",
+  "contexts": ["household", "shared_space"],
   "name": "Story Builder",
   "version": "1.0.0",
   "description": "Collaborative async storytelling — each contributor adds one part, and the full story reveals itself at the end.",
