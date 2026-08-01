@@ -94,3 +94,12 @@ export function isParticipant(story, meId) {
   if (!meId) return false;
   return story.participants.some(p => p.id === meId);
 }
+
+/**
+ * Fields the in-app search matches against (see hub-sdk `searchMatch`).
+ * A story is found by its title and by who is in it, which is what
+ * gets remembered once a family has a shelf of them.
+ */
+export function searchableFields(story, participantNames = "") {
+  return [story.title, participantNames];
+}

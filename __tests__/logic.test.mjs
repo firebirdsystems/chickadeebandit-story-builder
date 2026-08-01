@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nextTurnId, canAddEntry, isStoryComplete, isParticipant, activeParticipants } from "../src/logic.js";
+import { nextTurnId, canAddEntry, isStoryComplete, isParticipant, activeParticipants, searchableFields } from "../src/logic.js";
 
 const participants = [
   { id: "alice", name: "Alice" },
@@ -220,5 +220,13 @@ describe("canAddEntry unsticks a story stalled on a departed member", () => {
   it("does not resurrect a completed story", () => {
     const story = makeStory({ current_turn_member_id: "bob", status: "complete" });
     expect(canAddEntry(story, "carol", ROSTER)).toBe(false);
+  });
+});
+
+describe("searchableFields", () => {
+  it("matches on the participants passed in alongside the title", () => {
+    const fields = searchableFields({ title: "The dragon" }, "Mia Sam");
+    expect(fields).toContain("The dragon");
+    expect(fields).toContain("Mia Sam");
   });
 });
