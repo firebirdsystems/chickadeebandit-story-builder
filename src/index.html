@@ -212,10 +212,28 @@
   private data, no financial value, and no approval gates. Integrity and "blind
   storytelling" are enforced only by convention. If either property becomes important,
   the app would need to migrate to storage:"db" with server-side submission validation.
+
+  Re-confirmed as accepted in the 2026-07-31 Home/Community/Games catalog review.
+  Concretely, what "cosmetic" means here — say it plainly so nobody mistakes the
+  UI for a boundary:
+
+    * The reveal is a CLIENT-SIDE FETCH GATE, nothing more. openStory() only
+      requests the `story_{id}` key when it believes you may read it. Any member
+      can `GET ${STORE}?key=story_<id>` from the console and read every
+      in-progress story in full, at any time. The "hidden until the end" promise
+      is a social convention between people who want the game to be fun.
+    * canAddEntry() is client logic. Turn order is not enforced anywhere.
+    * A member can rewrite the blob wholesale: reorder, edit or delete other
+      people's entries, or mark a story complete.
+
+  What is NOT covered by that acceptance, and was therefore fixed rather than
+  documented, is data LOSS — a member losing writing they did in good faith is a
+  bug in any threat model. See submitEntry() for the concurrent-append merge and
+  logic.js:activeParticipants() for the departed-member turn deadlock.
 -->
 <script type="module">
 import { nextTurnId, canAddEntry, isStoryComplete, isParticipant } from "./logic.js";
-import { hubAlert } from "/hub-sdk.js";
+import { hubAlert, hubConfirm } from "/hub-sdk.js";
 
 // ── Runtime globals ────────────────────────────────────────────────────────────
 const CONTEXT   = window.__CONTEXT_URL    ?? "";
@@ -322,12 +340,14 @@ async function notifyTurn(story) {
   }).catch(() => {});
 }
 
-// ── Hub confirm (falls back to window.confirm in demo/dev) ────────────────────
+// ── Hub confirm ───────────────────────────────────────────────────────────────
+// Use the SDK's hubConfirm, which posts to the parent frame and renders in the
+// hub's own themed dialog. This used to hand-roll a `window.__hubConfirm` probe
+// with a `window.confirm` fallback — and inside the hub iframe a native confirm
+// renders as the browser's "an embedded page at …app… says" popup, which is both
+// off-brand and alarming on a story the user is about to end.
 async function confirm_({ message, description = "", confirmLabel = "Confirm", destructive = false }) {
-  if (typeof window.__hubConfirm === "function") {
-    return window.__hubConfirm({ message, description, confirmLabel, destructive });
-  }
-  return window.confirm(description ? `${message}\n\n${description}` : message);
+  return hubConfirm({ message, description, confirmLabel, destructive });
 }
 
 // ── Modal ──────────────────────────────────────────────────────────────────────
@@ -344,7 +364,7 @@ function closeModal() { window.closeModal(); }
 
 // ── Render: story list ─────────────────────────────────────────────────────────
 function storyCard(s) {
-  const myTurn   = canAddEntry(s, me.id);
+  const myTurn   = canAddEntry(s, me.id, members);
   const complete = s.status === "complete";
   const roundText = s.max_rounds
     ? `Round ${s.current_round} of ${s.max_rounds}`
@@ -377,8 +397,8 @@ function storyCard(s) {
 }
 
 function renderList() {
-  const myTurn  = stories.filter(s => s.status === "active" && canAddEntry(s, me.id));
-  const waiting = stories.filter(s => s.status === "active" && !canAddEntry(s, me.id));
+  const myTurn  = stories.filter(s => s.status === "active" && canAddEntry(s, me.id, members));
+  const waiting = stories.filter(s => s.status === "active" && !canAddEntry(s, me.id, members));
   const done    = stories.filter(s => s.status === "complete");
 
   document.getElementById("app").innerHTML = `
@@ -407,7 +427,7 @@ function renderDetail() {
   if (!s) { view = "list"; renderList(); return; }
 
   const complete = s.status === "complete";
-  const myTurn   = canAddEntry(s, me.id);
+  const myTurn   = canAddEntry(s, me.id, members);
   const lastEntry = activeEntries[activeEntries.length - 1];
   const turnLabel = { "round-robin": "Round-robin", "random": "Random", "free-for-all": "Free-for-all" }[s.turn_mode] ?? s.turn_mode;
   const roundText = s.max_rounds
@@ -517,7 +537,12 @@ window.openStory = async function(id) {
   activeEntries = [];
   view = "detail";
 
-  const needsEntries = story.status === "complete" || canAddEntry(story, me.id);
+  // NOTE: this is a presentation gate, not a security boundary. Withholding the
+  // fetch is what makes the game fun; it is not what makes the entries private,
+  // because nothing does — the KV key is readable by any member who asks for it
+  // directly. Accepted trade-off, see the SECURITY MODEL comment at the top.
+  // Do not add logic here that assumes an unfetched entry is an unread entry.
+  const needsEntries = story.status === "complete" || canAddEntry(story, me.id, members);
   if (needsEntries) {
     // Show minimal loading state, then do one full render once entries arrive
     document.getElementById("app").innerHTML =
@@ -540,15 +565,14 @@ window.submitEntry = async function() {
   if (btn) { btn.disabled = true; btn.textContent = "Adding…"; }
 
   try {
-    const entry = { member_id: me.id, member_name: me.name, text, added_at: new Date().toISOString() };
+    const entry = { id: crypto.randomUUID(), member_id: me.id, member_name: me.name, text, added_at: new Date().toISOString() };
 
     if (!STORE) {
       // Demo mode — mutate in memory
       activeEntries.push(entry);
       const s = activeStory;
-      const prevId = s.current_turn_member_id;
-      s.current_round++;
-      s.current_turn_member_id = nextTurnId(s, me.id);
+      s.current_round = activeEntries.length;
+      s.current_turn_member_id = nextTurnId(s, me.id, members);
       if (isStoryComplete(s)) s.status = "complete";
       render();
       return;
@@ -559,24 +583,39 @@ window.submitEntry = async function() {
       kvGet(`story_${activeStory.id}`),
       kvGet("stories"),
     ]);
-    const entries     = existingEntries ?? [];
     const storiesList = allStories ?? [];
-    entries.push(entry);
+
+    // Merge, don't clobber. This is a read-modify-write over a shared KV blob
+    // with no compare-and-swap, so two members submitting at once used to race:
+    // both read the same array, both appended one entry, and the second write
+    // overwrote the first — one member's writing silently gone. Re-reading
+    // immediately before the write and merging by entry id narrows that to the
+    // window between this read and this write, and makes a redelivered submit
+    // idempotent instead of duplicating. It is a narrowing, not a fix: only a
+    // CAS or a move to storage:"db" closes it completely.
+    const entries = existingEntries ?? [];
+    if (!entries.some(e => e.id && e.id === entry.id)) entries.push(entry);
 
     const idx = storiesList.findIndex(s => s.id === activeStory.id);
     if (idx !== -1) {
       const s = storiesList[idx];
-      s.current_round++;
-      s.current_turn_member_id = nextTurnId(s, me.id);
+      // Derive the round from the entries we just merged rather than `++`. An
+      // incremented counter double-counts under the same race (two submits, two
+      // increments, one entry) and can trip max_rounds into completing a story
+      // that is a round short.
+      s.current_round = entries.length;
+      s.current_turn_member_id = nextTurnId(s, me.id, members);
       if (isStoryComplete(s)) s.status = "complete";
       storiesList[idx] = s;
       activeStory = s;
     }
 
-    await Promise.all([
-      kvSet(`story_${activeStory.id}`, entries),
-      kvSet("stories", storiesList),
-    ]);
+    // Entries FIRST, then the header. The two keys cannot be written atomically,
+    // so order them by which failure is recoverable: losing the turn advance
+    // leaves text safely stored and the next submit re-derives the round, while
+    // the reverse would advance the turn past an entry that was never saved.
+    await kvSet(`story_${activeStory.id}`, entries);
+    await kvSet("stories", storiesList);
 
     activeEntries = entries;
     stories = storiesList;
@@ -759,10 +798,10 @@ window.createStory = async function() {
       created_at: now,
       ended_at: null,
     };
-    story.current_turn_member_id = nextTurnId(story, me.id);
+    story.current_turn_member_id = nextTurnId(story, me.id, members);
     if (isStoryComplete(story)) story.status = "complete";
 
-    const entries = [{ member_id: me.id, member_name: me.name, text: opening, added_at: now }];
+    const entries = [{ id: crypto.randomUUID(), member_id: me.id, member_name: me.name, text: opening, added_at: now }];
 
     if (!STORE) {
       DEMO_STORIES.unshift(story);
