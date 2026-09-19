@@ -37,7 +37,7 @@
     .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
     .btn-secondary:hover { background: var(--bg); }
     .btn-danger    { background: transparent; color: #dc2626; border: 1px solid #fca5a5; }
-    .btn-danger:hover { background: #fee2e2; }
+    .btn-danger:hover { background: var(--hub-tint-danger, #fee2e2); }
     .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
 
     /* ── Section labels ── */
@@ -99,7 +99,7 @@
     }
     .pill-turn     { background: var(--accent); color: var(--accent-fg); }
     .pill-waiting  { background: var(--border);  color: var(--muted); }
-    .pill-complete { background: #dcfce7; color: #166534; }
+    .pill-complete { background: var(--hub-tint-success, #dcfce7); color: var(--hub-tint-success-fg, #166534); }
 
     /* ── Entry input (your-turn state) ── */
     .input-area { margin-top: 16px; }
@@ -174,7 +174,7 @@
       border: 2px solid var(--border); border-radius: var(--radius);
       cursor: pointer; user-select: none; transition: border-color 0.12s, background 0.12s;
     }
-    .member-item.sel    { border-color: var(--accent); background: #eff6ff; }
+    .member-item.sel    { border-color: var(--accent); background: var(--hub-tint-info, #eff6ff); }
     .member-item.locked { cursor: default; }
     .member-name { font-size: 0.875rem; font-weight: 500; }
     .member-you  { margin-left: auto; font-size: 0.75rem; color: var(--muted); }
