@@ -240,7 +240,7 @@
 -->
 <script type="module">
 import { nextTurnId, canAddEntry, isStoryComplete, isParticipant, searchableFields } from "./logic.js";
-import { hubAlert, hubConfirm, searchMatch } from "/hub-sdk.js";
+import { hubAlert, hubConfirm, searchMatch, glyph, chickadee } from "/hub-sdk.js";
 
 // ── Runtime globals ────────────────────────────────────────────────────────────
 const CONTEXT   = window.__CONTEXT_URL    ?? "";
@@ -425,7 +425,7 @@ function renderList() {
   document.getElementById("app").innerHTML = `
     <div class="hdr">
       <div>
-        <h1>📖 Story Builder</h1>
+        <h1>${glyph("book-open")} Story Builder</h1>
         <div class="sub">Collaborative family storytelling</div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="openNewStoryModal()">+ New Story</button>
@@ -439,7 +439,7 @@ function renderList() {
 
     ${stories.length === 0 ? `
       <div class="empty">
-        <div class="icon">📖</div>
+        <div class="icon">${chickadee("nest", { size: 72 })}</div>
         <p>No stories yet.<br>Start one and let the family imagination run wild!</p>
       </div>` : ""}`;
 }
