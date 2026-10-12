@@ -353,7 +353,7 @@
           "as": "reader",
           "action": "dialog",
           "answer": "accept",
-          "text": "Injected fault: database unavailable"
+          "text": "Couldn’t add your part — try again."
         },
         {
           "as": "reader",

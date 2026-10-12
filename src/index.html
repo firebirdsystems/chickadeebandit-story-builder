@@ -598,7 +598,8 @@ window.openStory = async function(id) {
         : (await kvGet(`story_${id}`) ?? []);
     } catch (e) {
       goBack();
-      hubAlert(e.message);
+      console.error(e);
+      hubAlert("Couldn’t load this story.");
       return;
     }
   }
@@ -679,7 +680,8 @@ window.submitEntry = async function() {
     // The turn was not advanced, so it stays where it was. The part itself may
     // have been stored; `pendingEntry` keeps its id for the next press.
     activeStory = storyBefore;
-    hubAlert(e.message);
+    console.error(e);
+    hubAlert("Couldn’t add your part — try again.");
   }
 };
 
@@ -720,7 +722,8 @@ window.endStory = async function() {
     await kvSet("stories", storiesList);
     if (idx !== -1) activeStory = storiesList[idx];
   } catch (e) {
-    hubAlert(e.message);
+    console.error(e);
+    hubAlert("Couldn’t end the story — try again.");
     return;
   }
 
@@ -894,7 +897,8 @@ window.createStory = async function() {
     render();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = "Start Story"; }
-    hubAlert(e.message);
+    console.error(e);
+    hubAlert("Couldn’t start the story — try again.");
   }
 };
 
