@@ -103,3 +103,34 @@ export function isParticipant(story, meId) {
 export function searchableFields(story, participantNames = "") {
   return [story.title, participantNames];
 }
+
+/**
+ * The id to give the part a member is adding to a story.
+ *
+ * Saving a part is two writes: the story's entries, then its header. When the
+ * first lands and the second fails the member is told it did not save and
+ * presses Add again. A fresh id on that second press stored the same part
+ * twice. So the id is kept until the whole save is known to have landed, and a
+ * second press for the same story reuses it.
+ *
+ * @param {{storyId: string, id: string}|null} pending - the unfinished submission, if any
+ * @param {string} storyId
+ * @param {() => string} newId
+ */
+export function pendingEntryId(pending, storyId, newId) {
+  return pending && pending.storyId === storyId && pending.id ? pending.id : newId();
+}
+
+/**
+ * The stored entries with `entry` merged in: appended when its id is new,
+ * otherwise put in place of the stored entry with that id — so a retried part
+ * keeps its position and carries whatever the member last wrote. Returns a new
+ * array; the stored one is not changed.
+ */
+export function mergeEntry(entries, entry) {
+  const list = Array.isArray(entries) ? entries : [];
+  const idx = entry.id ? list.findIndex(e => e.id === entry.id) : -1;
+  if (idx === -1) return [...list, entry];
+  // The first save's time stands: the part was stored then.
+  return list.map((e, i) => i === idx ? { ...entry, added_at: e.added_at ?? entry.added_at } : e);
+}

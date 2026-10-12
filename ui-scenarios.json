@@ -1,0 +1,460 @@
+{
+  "scenarios": [
+    {
+      "name": "a story started by one member takes a second member's part, and both parts are still stored after a reload",
+      "members": {
+        "writer": "adult",
+        "reader": "adult"
+      },
+      "steps": [
+        {
+          "as": "writer",
+          "action": "open"
+        },
+        {
+          "as": "writer",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"new-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"new-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "fill",
+          "selector": "[data-testid=\"field-title\"]",
+          "value": "The lighthouse keeper"
+        },
+        {
+          "as": "writer",
+          "action": "fill",
+          "selector": "[data-testid=\"field-opening\"]",
+          "value": "A light went out at sea."
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"turn-mode-free-for-all\"]"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"start-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"turn-pill\"]",
+          "text": "You just went"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-detail\"]",
+          "text": "Round 1 of 10"
+        },
+        {
+          "as": "reader",
+          "action": "open"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-status\"]",
+          "text": "Your turn!"
+        },
+        {
+          "as": "reader",
+          "action": "click",
+          "selector": "[data-testid=\"story-card\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"prev-entry\"]",
+          "text": "A light went out at sea."
+        },
+        {
+          "as": "reader",
+          "action": "fill",
+          "selector": "[data-testid=\"field-entry\"]",
+          "value": "The keeper rowed out to look."
+        },
+        {
+          "as": "reader",
+          "action": "click",
+          "selector": "[data-testid=\"add-entry\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"turn-pill\"]",
+          "text": "You just went"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-detail\"]",
+          "text": "Round 2 of 10"
+        },
+        {
+          "as": "reader",
+          "action": "reload"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-status\"]",
+          "text": "You just went · Round 2 of 10"
+        },
+        {
+          "as": "writer",
+          "action": "reload"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-status\"]",
+          "text": "Your turn!"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"story-card\"]"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"prev-entry\"]",
+          "text": "The keeper rowed out to look."
+        },
+        {
+          "as": "writer",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"field-entry\"]"
+        }
+      ]
+    },
+    {
+      "name": "a failed first read of the stories says so and offers nothing to write with, and Try again brings the stories back",
+      "members": {
+        "writer": "adult",
+        "reader": "adult"
+      },
+      "steps": [
+        {
+          "as": "writer",
+          "action": "open"
+        },
+        {
+          "as": "writer",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"new-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"new-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "fill",
+          "selector": "[data-testid=\"field-title\"]",
+          "value": "The lighthouse keeper"
+        },
+        {
+          "as": "writer",
+          "action": "fill",
+          "selector": "[data-testid=\"field-opening\"]",
+          "value": "A light went out at sea."
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"turn-mode-free-for-all\"]"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"start-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"turn-pill\"]",
+          "text": "You just went"
+        },
+        {
+          "as": "reader",
+          "action": "fault",
+          "mode": "down"
+        },
+        {
+          "as": "reader",
+          "action": "open"
+        },
+        {
+          "as": "reader",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"load-error\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"load-error\"]",
+          "text": "Couldn’t load the stories."
+        },
+        {
+          "as": "reader",
+          "action": "expectNoText",
+          "text": "No stories yet."
+        },
+        {
+          "as": "reader",
+          "action": "expectCount",
+          "selector": "[data-testid=\"story-card\"]",
+          "count": 0
+        },
+        {
+          "as": "reader",
+          "action": "expectCount",
+          "selector": "[data-testid=\"new-story\"]",
+          "count": 0
+        },
+        {
+          "as": "reader",
+          "action": "fault",
+          "mode": "none"
+        },
+        {
+          "as": "reader",
+          "action": "click",
+          "selector": "[data-testid=\"load-retry\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"story-card\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-card\"]",
+          "text": "The lighthouse keeper"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-status\"]",
+          "text": "Your turn!"
+        },
+        {
+          "as": "reader",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"new-story\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectCount",
+          "selector": "[data-testid=\"load-error\"]",
+          "count": 0
+        }
+      ]
+    },
+    {
+      "name": "a part that could not be saved stays in the field with the turn unchanged, and pressing Add again stores it once",
+      "members": {
+        "writer": "adult",
+        "reader": "adult"
+      },
+      "steps": [
+        {
+          "as": "writer",
+          "action": "open"
+        },
+        {
+          "as": "writer",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"new-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"new-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "fill",
+          "selector": "[data-testid=\"field-title\"]",
+          "value": "The lighthouse keeper"
+        },
+        {
+          "as": "writer",
+          "action": "fill",
+          "selector": "[data-testid=\"field-opening\"]",
+          "value": "A light went out at sea."
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"turn-mode-free-for-all\"]"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"start-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"turn-pill\"]",
+          "text": "You just went"
+        },
+        {
+          "as": "reader",
+          "action": "open"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-status\"]",
+          "text": "Your turn!"
+        },
+        {
+          "as": "reader",
+          "action": "click",
+          "selector": "[data-testid=\"story-card\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"prev-entry\"]",
+          "text": "A light went out at sea."
+        },
+        {
+          "as": "reader",
+          "action": "fill",
+          "selector": "[data-testid=\"field-entry\"]",
+          "value": "The keeper rowed out to look."
+        },
+        {
+          "as": "reader",
+          "action": "fault",
+          "mode": "down"
+        },
+        {
+          "as": "reader",
+          "action": "click",
+          "selector": "[data-testid=\"add-entry\"]"
+        },
+        {
+          "as": "reader",
+          "action": "dialog",
+          "answer": "accept",
+          "text": "Injected fault: database unavailable"
+        },
+        {
+          "as": "reader",
+          "action": "expectVisible",
+          "selector": "[data-testid=\"field-entry\"]:not(:placeholder-shown)"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"turn-pill\"]",
+          "text": "Your turn"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"add-entry\"]",
+          "text": "Add to Story"
+        },
+        {
+          "as": "reader",
+          "action": "fault",
+          "mode": "none"
+        },
+        {
+          "as": "reader",
+          "action": "click",
+          "selector": "[data-testid=\"add-entry\"]"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"turn-pill\"]",
+          "text": "You just went"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-detail\"]",
+          "text": "Round 2 of 10"
+        },
+        {
+          "as": "reader",
+          "action": "reload"
+        },
+        {
+          "as": "reader",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-status\"]",
+          "text": "You just went · Round 2 of 10"
+        },
+        {
+          "as": "writer",
+          "action": "reload"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"story-status\"]",
+          "text": "Your turn!"
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"story-card\"]"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"prev-entry\"]",
+          "text": "The keeper rowed out to look."
+        },
+        {
+          "as": "writer",
+          "action": "click",
+          "selector": "[data-testid=\"end-story\"]"
+        },
+        {
+          "as": "writer",
+          "action": "dialog",
+          "answer": "accept",
+          "text": "End this story?"
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"turn-pill\"]",
+          "text": "Story complete"
+        },
+        {
+          "as": "writer",
+          "action": "expectCount",
+          "selector": "[data-testid=\"entry-card\"]",
+          "count": 2
+        },
+        {
+          "as": "writer",
+          "action": "expectText",
+          "selector": "[data-testid=\"entry-card\"]:nth-child(2)",
+          "text": "The keeper rowed out to look."
+        }
+      ]
+    }
+  ]
+}

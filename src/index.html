@@ -81,6 +81,8 @@
     .empty { text-align: center; padding: 56px 20px; color: var(--muted); }
     .empty .icon { font-size: 2.8rem; margin-bottom: 12px; }
     .empty p { font-size: 0.9rem; line-height: 1.65; }
+    .load-error { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius); background: var(--hub-tint-danger); color: var(--hub-tint-danger-fg); font-size: 0.9rem; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .load-error-retry { font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: var(--radius); padding: 4px 10px; cursor: pointer; flex-shrink: 0; }
 
     /* ── Back button ── */
     .back { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.85rem;
@@ -239,7 +241,7 @@
   logic.js:activeParticipants() for the departed-member turn deadlock.
 -->
 <script type="module">
-import { nextTurnId, canAddEntry, isStoryComplete, isParticipant, searchableFields } from "./logic.js";
+import { nextTurnId, canAddEntry, isStoryComplete, isParticipant, searchableFields, pendingEntryId, mergeEntry } from "./logic.js";
 import { hubAlert, hubConfirm, searchMatch, glyph, chickadee } from "/hub-sdk.js";
 
 // ── Runtime globals ────────────────────────────────────────────────────────────
@@ -259,6 +261,11 @@ let view         = "list";   // "list" | "detail"
 let activeStory  = null;
 let activeEntries = [];
 let modalEl      = null;
+let loadFailed   = false;    // the stories could not be read, and no read has succeeded since
+// The id of the part being added to a story, kept until that part is known to
+// be saved. Pressing Add again after a save that half landed sends the same id,
+// so the stored part is updated in place rather than added a second time.
+let pendingEntry = null;     // { storyId, id }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#ef4444","#f97316","#eab308","#22c55e","#14b8a6","#3b82f6","#64748b"];
@@ -296,30 +303,39 @@ function av(memberId, memberName, cls = "av") {
 // ── KV helpers ─────────────────────────────────────────────────────────────────
 async function kvGet(key) {
   if (!STORE) return null;
-  try {
-    const res = await fetch(`${STORE}?key=${encodeURIComponent(key)}`);
-    if (!res.ok) return null;
-    const { value } = await res.json();
-    return value ? JSON.parse(value) : null;
-  } catch { return null; }
+  // A missing key answers 200 with a null value, so anything else is a failed
+  // read. It throws rather than answering null: the callers write back what
+  // they read, and an empty answer would overwrite the stored story.
+  const res = await fetch(`${STORE}?key=${encodeURIComponent(key)}`);
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || typeof json !== "object" || json.error) throw new Error(json?.error || "Couldn’t reach the hub. Try again.");
+  return json.value ? JSON.parse(json.value) : null;
 }
 
 async function kvSet(key, data) {
   if (!STORE) return;
-  await fetch(STORE, {
+  const res = await fetch(STORE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ key, value: JSON.stringify(data) }),
   });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.error || "Couldn’t save. Try again.");
+  }
 }
 
 // ── Data loaders ───────────────────────────────────────────────────────────────
 async function loadMembers() {
   if (!CONTEXT) { members = DEMO_MEMBERS; return; }
-  try {
-    const res = await fetch(`${CONTEXT}?keys=family.members`);
-    members = ((await res.json())["family.members"]) ?? [];
-  } catch { members = []; }
+  // A roster that could not be read is a failed load, not an empty household.
+  const res = await fetch(`${CONTEXT}?keys=family.members`);
+  if (!res.ok) throw new Error(`context ${res.status}`);
+  const json = await res.json();
+  if (!json || typeof json !== "object") throw new Error("context: unexpected response");
+  // The hub answers 200 and names a key it could not resolve in `$errors`.
+  if (Array.isArray(json.$errors) && json.$errors.includes("family.members")) throw new Error("context: family.members did not resolve");
+  members = json["family.members"] ?? [];
 }
 
 async function loadStories() {
@@ -394,10 +410,10 @@ function storyCard(s) {
   const avatarsHtml = `<div class="avatars">${s.participants.map(p => av(p.id, p.name)).join("")}</div>`;
 
   return `
-    <div class="story-card ${myTurn ? "urgent" : ""}" onclick="openStory('${esc(s.id)}')">
+    <div class="story-card ${myTurn ? "urgent" : ""}" data-testid="story-card" data-story-id="${esc(s.id)}" onclick="openStory('${esc(s.id)}')">
       <div class="card-body">
         <div class="card-title">${esc(s.title)}</div>
-        <div class="card-status ${statusClass}">${statusText}</div>
+        <div class="card-status ${statusClass}" data-testid="story-status">${statusText}</div>
         ${avatarsHtml}
       </div>
       <div class="card-arrow">›</div>
@@ -428,8 +444,10 @@ function renderList() {
         <h1>${glyph("book-open")} Story Builder</h1>
         <div class="sub">Collaborative family storytelling</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="openNewStoryModal()">+ New Story</button>
+      ${loadFailed ? "" : `<button class="btn btn-primary btn-sm" data-testid="new-story" onclick="openNewStoryModal()">+ New Story</button>`}
     </div>
+
+    ${loadFailed ? `<div class="load-error" data-testid="load-error" role="alert"><span>Couldn’t load the stories.</span> <button type="button" class="load-error-retry" data-testid="load-retry" onclick="retryLoad()">Try again</button></div>` : ""}
 
     ${stories.length ? `<div class="search-row"><input id="search" class="search-input" type="search" placeholder="Search stories…" aria-label="Search stories" value="${esc(searchQ)}" /></div>` : ""}
     ${stories.length && !matched.length ? `<div class="empty"><p>No stories match "${esc(searchQ)}".</p></div>` : ""}
@@ -437,7 +455,7 @@ function renderList() {
     ${waiting.length ? `<div class="sec">In progress</div>${waiting.map(storyCard).join("")}` : ""}
     ${done.length    ? `<div class="sec">Complete</div>${done.map(storyCard).join("")}` : ""}
 
-    ${stories.length === 0 ? `
+    ${!loadFailed && stories.length === 0 ? `
       <div class="empty">
         <div class="icon">${chickadee("nest", { size: 72 })}</div>
         <p>No stories yet.<br>Start one and let the family imagination run wild!</p>
@@ -459,11 +477,11 @@ function renderDetail() {
 
   let pillHtml;
   if (complete) {
-    pillHtml = `<span class="pill pill-complete">Story complete</span>`;
+    pillHtml = `<span class="pill pill-complete" data-testid="turn-pill">Story complete</span>`;
   } else if (myTurn) {
-    pillHtml = `<span class="pill pill-turn">Your turn</span>`;
+    pillHtml = `<span class="pill pill-turn" data-testid="turn-pill">Your turn</span>`;
   } else if (s.turn_mode === "free-for-all") {
-    pillHtml = `<span class="pill pill-waiting">You just went</span>`;
+    pillHtml = `<span class="pill pill-waiting" data-testid="turn-pill">You just went</span>`;
   } else {
     const nextP = s.participants.find(p => p.id === s.current_turn_member_id);
     pillHtml = `<span class="pill pill-waiting">Waiting for ${esc(nextP?.name ?? "someone")}</span>`;
@@ -474,7 +492,7 @@ function renderDetail() {
     contentHtml = `
       <div class="story-scroll">
         ${activeEntries.map(e => `
-          <div class="entry-card">
+          <div class="entry-card" data-testid="entry-card">
             <div class="entry-meta">
               ${av(e.member_id, e.member_name, "av-md")}
               <span class="entry-by">${esc(e.member_name)}</span>
@@ -492,17 +510,17 @@ function renderDetail() {
       <div class="input-area">
         ${lastEntry ? `
           <div class="prev-note">Previous entry — only you see this before adding your part:</div>
-          <div class="prev-entry">
+          <div class="prev-entry" data-testid="prev-entry">
             <div class="entry-meta">
               ${av(lastEntry.member_id, lastEntry.member_name, "av-md")}
               <span class="entry-by">${esc(lastEntry.member_name)}</span>
             </div>
             <div class="entry-quote">${esc(lastEntry.text)}</div>
           </div>` : ""}
-        <textarea id="entry-text" class="entry-input" placeholder="Add your part of the story…" rows="6" maxlength="1000"></textarea>
+        <textarea id="entry-text" data-testid="field-entry" class="entry-input" placeholder="Add your part of the story…" rows="6" maxlength="1000"></textarea>
         <div class="detail-actions">
-          <button class="btn btn-primary" onclick="submitEntry()">Add to Story</button>
-          ${s.creator_id === me.id ? `<button class="btn btn-danger btn-sm" onclick="endStory()">End Story</button>` : ""}
+          <button class="btn btn-primary" data-testid="add-entry" onclick="submitEntry()">Add to Story</button>
+          ${s.creator_id === me.id ? `<button class="btn btn-danger btn-sm" data-testid="end-story" onclick="endStory()">End Story</button>` : ""}
         </div>
       </div>`;
   } else {
@@ -528,7 +546,7 @@ function renderDetail() {
 
   document.getElementById("app").innerHTML = `
     <button class="back" onclick="goBack()">‹ Stories</button>
-    <div class="story-hdr">
+    <div class="story-hdr" data-testid="story-detail">
       <h2>${esc(s.title)}</h2>
       <div class="story-meta">${roundText} · ${turnLabel} · ${s.participants.map(p => esc(p.name)).join(", ")}</div>
       ${pillHtml}
@@ -550,6 +568,9 @@ window.goBack = function() {
   view = "list";
   activeStory  = null;
   activeEntries = [];
+  // Leaving the story ends the retry: a part written on a later visit is a
+  // new part, and must not take the place of one stored earlier.
+  pendingEntry = null;
   render();
 };
 
@@ -571,9 +592,15 @@ window.openStory = async function(id) {
     document.getElementById("app").innerHTML =
       `<button class="back" onclick="goBack()">‹ Stories</button>` +
       `<div style="padding:48px 0;text-align:center;color:var(--muted)">Loading…</div>`;
-    activeEntries = !STORE
-      ? (DEMO_ENTRIES[id] ?? [])
-      : (await kvGet(`story_${id}`) ?? []);
+    try {
+      activeEntries = !STORE
+        ? (DEMO_ENTRIES[id] ?? [])
+        : (await kvGet(`story_${id}`) ?? []);
+    } catch (e) {
+      goBack();
+      hubAlert(e.message);
+      return;
+    }
   }
   render();
 };
@@ -587,10 +614,13 @@ window.submitEntry = async function() {
   const btn = document.querySelector(".btn-primary");
   if (btn) { btn.disabled = true; btn.textContent = "Adding…"; }
 
+  const storyBefore = activeStory;
   try {
-    const entry = { id: crypto.randomUUID(), member_id: me.id, member_name: me.name, text, added_at: new Date().toISOString() };
+    pendingEntry = { storyId: activeStory.id, id: pendingEntryId(pendingEntry, activeStory.id, () => crypto.randomUUID()) };
+    const entry = { id: pendingEntry.id, member_id: me.id, member_name: me.name, text, added_at: new Date().toISOString() };
 
     if (!STORE) {
+      pendingEntry = null;
       // Demo mode — mutate in memory
       activeEntries.push(entry);
       const s = activeStory;
@@ -616,8 +646,7 @@ window.submitEntry = async function() {
     // window between this read and this write, and makes a redelivered submit
     // idempotent instead of duplicating. It is a narrowing, not a fix: only a
     // CAS or a move to storage:"db" closes it completely.
-    const entries = existingEntries ?? [];
-    if (!entries.some(e => e.id && e.id === entry.id)) entries.push(entry);
+    const entries = mergeEntry(existingEntries ?? [], entry);
 
     const idx = storiesList.findIndex(s => s.id === activeStory.id);
     if (idx !== -1) {
@@ -639,6 +668,7 @@ window.submitEntry = async function() {
     // the reverse would advance the turn past an entry that was never saved.
     await kvSet(`story_${activeStory.id}`, entries);
     await kvSet("stories", storiesList);
+    pendingEntry = null;
 
     activeEntries = entries;
     stories = storiesList;
@@ -646,7 +676,10 @@ window.submitEntry = async function() {
     render();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = "Add to Story"; }
-    throw e;
+    // The turn was not advanced, so it stays where it was. The part itself may
+    // have been stored; `pendingEntry` keeps its id for the next press.
+    activeStory = storyBefore;
+    hubAlert(e.message);
   }
 };
 
@@ -669,20 +702,27 @@ window.endStory = async function() {
   }
 
   // Fetch stories list and entries in parallel
-  const [allStories, entries] = await Promise.all([
-    kvGet("stories"),
-    kvGet(`story_${activeStory.id}`),
-  ]);
+  let storiesList, entries;
+  try {
+    const [allStories, storedEntries] = await Promise.all([
+      kvGet("stories"),
+      kvGet(`story_${activeStory.id}`),
+    ]);
+    entries = storedEntries;
 
-  const storiesList = allStories ?? [];
-  const idx = storiesList.findIndex(s => s.id === activeStory.id);
-  if (idx !== -1) {
-    storiesList[idx].status  = "complete";
-    storiesList[idx].ended_at = new Date().toISOString();
-    activeStory = storiesList[idx];
+    storiesList = allStories ?? [];
+    const idx = storiesList.findIndex(s => s.id === activeStory.id);
+    if (idx !== -1) {
+      storiesList[idx].status  = "complete";
+      storiesList[idx].ended_at = new Date().toISOString();
+    }
+
+    await kvSet("stories", storiesList);
+    if (idx !== -1) activeStory = storiesList[idx];
+  } catch (e) {
+    hubAlert(e.message);
+    return;
   }
-
-  await kvSet("stories", storiesList);
 
   activeEntries = entries ?? [];
   stories = storiesList;
@@ -707,15 +747,17 @@ window.copyStory = async function() {
 
 // ── New story modal ────────────────────────────────────────────────────────────
 window.openNewStoryModal = function() {
+  // The list of stories is unread, so there is nothing safe to add one to.
+  if (loadFailed) return;
   openModal(`
     <h2>New Story</h2>
     <div class="fg">
       <label>Title</label>
-      <input id="f-title" class="input" placeholder="The Great Adventure…" maxlength="100" />
+      <input id="f-title" data-testid="field-title" class="input" placeholder="The Great Adventure…" maxlength="100" />
     </div>
     <div class="fg">
       <label>Opening paragraph <span class="lbl-muted">(your first entry)</span></label>
-      <textarea id="f-opening" class="input" rows="4" placeholder="Once upon a time…" maxlength="1000" style="resize:vertical"></textarea>
+      <textarea id="f-opening" data-testid="field-opening" class="input" rows="4" placeholder="Once upon a time…" maxlength="1000" style="resize:vertical"></textarea>
     </div>
     <div class="fg">
       <label>Participants</label>
@@ -747,7 +789,7 @@ window.openNewStoryModal = function() {
           </div>
         </label>
         <label class="turn-opt">
-          <input type="radio" name="turn-mode" value="free-for-all" />
+          <input type="radio" name="turn-mode" value="free-for-all" data-testid="turn-mode-free-for-all" />
           <div class="turn-opt-body">
             <div class="turn-opt-label">Free-for-all</div>
             <div class="turn-opt-desc">Anyone can go, except the person who went last</div>
@@ -766,7 +808,7 @@ window.openNewStoryModal = function() {
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="createStory()">Start Story</button>
+      <button class="btn btn-primary" data-testid="start-story" onclick="createStory()">Start Story</button>
     </div>`);
   setTimeout(() => document.getElementById("f-title")?.focus(), 50);
 };
@@ -852,7 +894,7 @@ window.createStory = async function() {
     render();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = "Start Story"; }
-    throw e;
+    hubAlert(e.message);
   }
 };
 
@@ -938,8 +980,22 @@ const DEMO_ENTRIES = {
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    await Promise.all([loadMembers(), loadStories()]);
+    loadFailed = false;
+  } catch {
+    loadFailed = true;
+  }
+}
+
+window.retryLoad = async function() {
+  await loadAll();
+  render();
+};
+
 (async () => {
-  await Promise.all([loadMembers(), loadStories()]);
+  await loadAll();
   handleDeepLink();
   render();
 })();

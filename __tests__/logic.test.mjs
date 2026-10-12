@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nextTurnId, canAddEntry, isStoryComplete, isParticipant, activeParticipants, searchableFields } from "../src/logic.js";
+import { nextTurnId, canAddEntry, isStoryComplete, isParticipant, activeParticipants, searchableFields, pendingEntryId, mergeEntry } from "../src/logic.js";
 
 const participants = [
   { id: "alice", name: "Alice" },
@@ -228,5 +228,54 @@ describe("searchableFields", () => {
     const fields = searchableFields({ title: "The dragon" }, "Mia Sam");
     expect(fields).toContain("The dragon");
     expect(fields).toContain("Mia Sam");
+  });
+});
+
+describe("pendingEntryId", () => {
+  it("makes a new id when nothing is pending", () => {
+    expect(pendingEntryId(null, "s1", () => "new")).toBe("new");
+  });
+
+  it("reuses the pending id for a second press on the same story", () => {
+    expect(pendingEntryId({ storyId: "s1", id: "first" }, "s1", () => "new")).toBe("first");
+  });
+
+  it("makes a new id for a different story", () => {
+    expect(pendingEntryId({ storyId: "s1", id: "first" }, "s2", () => "new")).toBe("new");
+  });
+});
+
+describe("mergeEntry", () => {
+  const opening = { id: "e1", member_id: "alice", text: "Once", added_at: "2026-01-01T00:00:00Z" };
+
+  it("appends a part whose id is not stored", () => {
+    const part = { id: "e2", member_id: "bob", text: "Then", added_at: "2026-01-02T00:00:00Z" };
+    expect(mergeEntry([opening], part)).toEqual([opening, part]);
+  });
+
+  it("does not add a part a second time when its first save half landed", () => {
+    const part = { id: "e2", member_id: "bob", text: "Then", added_at: "2026-01-02T00:00:00Z" };
+    const stored = mergeEntry([opening], part);
+    const again = mergeEntry(stored, { ...part, added_at: "2026-01-02T00:05:00Z" });
+    expect(again).toHaveLength(2);
+    expect(again[1]).toEqual(part);
+  });
+
+  it("keeps the retried part in place, with the text the member last wrote", () => {
+    const part = { id: "e2", member_id: "bob", text: "Then", added_at: "2026-01-02T00:00:00Z" };
+    const later = { id: "e3", member_id: "carol", text: "After", added_at: "2026-01-03T00:00:00Z" };
+    const merged = mergeEntry([opening, part, later], { ...part, text: "Then, slowly" });
+    expect(merged.map(e => e.id)).toEqual(["e1", "e2", "e3"]);
+    expect(merged[1].text).toBe("Then, slowly");
+  });
+
+  it("leaves the stored array alone", () => {
+    const stored = [opening];
+    mergeEntry(stored, { id: "e2", text: "Then" });
+    expect(stored).toEqual([opening]);
+  });
+
+  it("reads a missing list as empty", () => {
+    expect(mergeEntry(null, opening)).toEqual([opening]);
   });
 });
